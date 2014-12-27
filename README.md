@@ -11,7 +11,7 @@ References
 
     Original issue.
 
-1. [Issue 13405: Add DTrace probes][12405]
+1. [Issue 13405: Add DTrace probes][13405]
 
     Current DTrace tracking issue.
 
