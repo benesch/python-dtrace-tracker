@@ -1,7 +1,5 @@
-PYTHON: 2.7
-
-Generated from Apple-provided OS X Python build
-http://www.opensource.apple.com/source/python/python-89/2.7/
+Extracted from Apple-provided OS X Python build.
+REF: http://www.opensource.apple.com/source/python/python-89/2.7/
 
 --- a/Python/ceval.c
 +++ b/Python/ceval.c
