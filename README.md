@@ -6,21 +6,21 @@ tracking the implementation of DTrace probes in Python
 Python bugs
 -----------
 
-1. [**Issue 4111: Add Systemtap/DTrace probes][4111**]
+1. [Issue 4111: Add Systemtap/DTrace probes][4111]
 
     Original issue.
 
-1. [**Issue 13405: Add DTrace probes][13405**]
+1. [Issue 13405: Add DTrace probes][13405]
 
     Current DTrace tracking issue. Appears blocked on combined
     SystemTap and DTrace patch.
 
-1. [**Issue 14776: Add SystemTap static markers][14776**]
+1. [Issue 14776: Add SystemTap static markers][14776]
 
     Current SystemTap tracking issues. Appears blocked on combined
     SystemTap and DTrace patch.
 
-1. [**Issue 21590: Systemtap and Dtrace support][21590**]
+1. [Issue 21590: Systemtap and Dtrace support][21590]
 
     Combined tracking of 13405 and 14776. Appears inactive.
 
