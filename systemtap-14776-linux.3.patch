@@ -1,3 +1,8 @@
+Extracted from issue 14776. Appears to be built against revision
+b898402e75ef of Python source.
+
+REF: http://bugs.python.org/file35294/cpython-systemtap-2014-05-19-all-files.patch
+
 diff -r b898402e75ef Doc/howto/index.rst
 --- a/Doc/howto/index.rst	Mon May 19 07:34:08 2014 +0100
 +++ b/Doc/howto/index.rst	Mon May 19 16:58:38 2014 +0200
