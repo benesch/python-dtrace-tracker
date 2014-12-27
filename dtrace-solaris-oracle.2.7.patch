@@ -1,5 +1,7 @@
-Extracted from Solaris Userland
-https://java.net/projects/solaris-userland/sources/gate/show/components/python/python27/patches?rev=3573
+Extracted from Solaris Userland. Appears to be a modification of
+upstream patch 13405.
+
+REF: https://java.net/projects/solaris-userland/sources/gate/show/components/python/python27/patches?rev=3573
 
 This patch adds Python dtrace support.  Note it is necessary to modify
 test_sys.py to add an integer to the frameobject structure size since this
