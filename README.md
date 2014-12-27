@@ -10,7 +10,7 @@ Several known patches, sourced from patches shipped in distribution packages and
 
     FRAMEWORK-SOURCE-OS.PYVERSION.patch
 
-where `FRAMEWORK` is `dtrace` or `systemtap`,  `SOURCE` is the distribution or Python issue ID the patch was extracted from, `OS` is a `+`-separated list of the operating systems it purports to enable DTrace for.
+where `FRAMEWORK` is `dtrace` or `systemtap`,  `SOURCE` is the distribution or Python issue ID the patch was extracted from, `OS` is a list of supported OSes, or `all` to indicate all `FRAMEWORK`-supporting OSes.
 
 Python bugs
 -----------
