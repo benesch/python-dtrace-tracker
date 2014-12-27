@@ -33,6 +33,10 @@ Useful references
 -----------------
 * [Official DTrace guide](http://dtrace.org/guide/preface.html)
 
+* [DTrace patch for Python 2.7.x and 3.x](https://www.jcea.es/artic/python_dtrace.htm)
+
+    jcea's lovingly-maintained DTrace patches for recent versions of Python.
+
 * Python's [`sys.settrace`](https://docs.python.org/3.5/library/sys.html#sys.settrace)
 
     DTrace probes should eventually cover everything a system trace function gets called for.
