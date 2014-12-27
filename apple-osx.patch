@@ -1,0 +1,110 @@
+Generated from Apple-provided OS X Python build
+http://www.opensource.apple.com/source/python/python-89/2.7/
+
+--- a/Python/ceval.c
++++ b/Python/ceval.c
+@@ -19,6 +19,38 @@
+ 
+ #include <ctype.h>
+ 
++#ifdef ENABLE_DTRACE
++
++#include "pydtrace.h"
++
++#define PYTHON_DTRACE_ENTRY(py_frame)         \
++  if (PYTHON_FUNCTION_ENTRY_ENABLED()) {        \
++    char *fl_name = ((PyStringObject *)py_frame->f_code-> \
++         co_filename)->ob_sval;     \
++    char *fn_name = ((PyStringObject *)py_frame->f_code-> \
++         co_name)->ob_sval;     \
++                  \
++    PYTHON_FUNCTION_ENTRY(fl_name, fn_name, py_frame->f_lineno, \
++            py_frame->f_code->co_argcount);   \
++  }
++
++#define PYTHON_DTRACE_RETURN(py_frame, object)        \
++  if (PYTHON_FUNCTION_RETURN_ENABLED()) {       \
++    char *fl_name = ((PyStringObject *)py_frame->f_code-> \
++         co_filename)->ob_sval;     \
++    char *fn_name = ((PyStringObject *)py_frame->f_code-> \
++         co_name)->ob_sval;     \
++                  \
++    PYTHON_FUNCTION_RETURN(fl_name, fn_name, object); \
++  }
++
++#else
++
++#define PYTHON_DTRACE_ENTRY(py_frame) /* nothing */
++#define PYTHON_DTRACE_RETURN(py_frame, object) /* nothing */
++
++#endif /* ENABLE_DTRACE */
++
+ #ifndef WITH_TSC
+ 
+ #define READ_TIMESTAMP(var)
+@@ -2660,6 +2692,9 @@ PyEval_EvalFrameEx(PyFrameObject *f, int throwflag)
+             PyObject **sp;
+             PCALL(PCALL_ALL);
+             sp = stack_pointer;
++
++      PYTHON_DTRACE_ENTRY(f);
++
+ #ifdef WITH_TSC
+             x = call_function(&sp, oparg, &intr0, &intr1);
+ #else
+@@ -2667,8 +2702,13 @@ PyEval_EvalFrameEx(PyFrameObject *f, int throwflag)
+ #endif
+             stack_pointer = sp;
+             PUSH(x);
+-            if (x != NULL)
++      if (x != NULL) {
++        PYTHON_DTRACE_RETURN(f, (char *)x->ob_type->tp_name);
+                 continue;
++      }
++
++      PYTHON_DTRACE_RETURN(f, "error");
++
+             break;
+         }
+
+--- /dev/null
++++ b/Python/pydtrace.d
+@@ -0,0 +1,37 @@
++
++/* Python dtrace provider */
++
++provider python {
++    probe function__entry(char *, char *, int, int);
++    probe function__return(char *, char *, char *);
++};
++
++/*
++
++   f      ==> PyFrameObject from compile.h
++   f_code ==> PyCodeObject  from frameobject.h
++
++Entry
++	1. char * (file name, f->f_code->co_filename->ob_sval)
++	2. char * (function name, f->f_code->co_name->ob_sval)
++	3. int    (line number, f->f_lineno)
++	4. int	  (argument count, f->f_code->co_argcount)
++
++Return
++	1. char * (file name, f->f_code->co_filename->ob_sval)
++	2. char * (function name, f->f_code->co_name->ob_sval)
++	3. char * (object type char * , object->ob_type->tp_name)
++
++*/
++
++
++
++/*
++  The definitions for these below are here:
++	http://docs.sun.com/app/docs/doc/817-6223/6mlkidlnp?a=view
++*/
++#pragma D attributes unstable/unstable/Common provider python provider
++#pragma D attributes unstable/unstable/Common provider python module
++#pragma D attributes unstable/unstable/Common provider python function
++#pragma D attributes unstable/unstable/Common provider python name
++#pragma D attributes unstable/unstable/Common provider python args
+\ No newline at end of file
