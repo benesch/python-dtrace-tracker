@@ -1,3 +1,7 @@
+Listed as a "repository containing patch" on issue 13405.
+
+REF: https://www.jcea.es/artic/python_dtrace-3_4_2_55be19e94859.txt
+
 diff --git a/.hgignore b/.hgignore
 --- a/.hgignore
 +++ b/.hgignore
