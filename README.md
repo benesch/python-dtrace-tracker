@@ -3,6 +3,15 @@ python-dtrace-tracker
 
 tracking the implementation of DTrace probes in Python
 
+Patches
+-------
+
+Several known patches, sourced from patches shipped in distribution packages and from the Python issue tracker, are collected here. Patches are named
+
+    FRAMEWORK-SOURCE-OS.patch
+
+where `FRAMEWORK` is `dtrace` or `systemtap`,  `SOURCE` is the distribution or Python issue ID the patch was extracted from, and `OS` is a `+`-separated list of the operating systems it purports to enable DTrace for.
+
 Python bugs
 -----------
 
