@@ -1,3 +1,6 @@
+Extracted from Fedora python package
+https://apps.fedoraproject.org/packages/python/overview/
+
 --- /dev/null
 +++ systemtap-example.stp
 +@@ -0,0 +1,21 @@
