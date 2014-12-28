@@ -1,0 +1,939 @@
+# HG changeset patch
+# User Nikhil Benesch <nikhil.benesch@gmail.com>
+# Date 1419758929 18000
+#      Sun Dec 28 04:28:49 2014 -0500
+# Node ID 90a23c06d3bcff7b5c4b2c163b8d9032b2e05179
+# Parent  731b9653ef6b33c6204c0c5c8d8b5e89d4866158
+initial superpatch
+
+diff -r 731b9653ef6b -r 90a23c06d3bc Include/pydtrace.h
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Include/pydtrace.h	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,47 @@
++/* Static DTrace probes interface */
++
++#ifndef Py_DTRACE_H
++#define Py_DTRACE_H
++
++#ifdef WITH_DTRACE
++
++#include "pydtrace_probes.h"
++
++/* pydtrace_probes.h, on systems with DTrace, is auto-generated to include
++   `PyDTrace_{PROBE}` and `PyDTrace_{PROBE}_ENABLED()` macros for every probe
++   defined in pydtrace_provider.d.
++
++   Calling these functions MUST be guarded by a `PyDTrace_{PROBE}_ENABLED()`
++   check to minimize performance impact when probing is off. For example:
++
++       if (PyDTrace_FUNCTION_ENTRY_ENABLED())
++           PyDTrace_FUNCTION_ENTRY(f);
++*/
++
++#else
++
++/* Without DTrace, compile to nothing. */
++
++#define PyDTrace_LINE(arg0, arg1, arg2, arg3) do ; while (0)
++#define PyDTrace_FUNCTION_ENTRY(arg0)         do ; while (0)
++#define PyDTrace_FUNCTION_RETURN(arg0)        do ; while (0)
++#define PyDTrace_GC_START(arg0)               do ; while (0)
++#define PyDTrace_GC_DONE(arg0)                do ; while (0)
++#define PyDTrace_INSTANCE_NEW_START(arg0)     do ; while (0)
++#define PyDTrace_INSTANCE_NEW_DONE(arg0)      do ; while (0)
++#define PyDTrace_INSTANCE_DELETE_START(arg0)  do ; while (0)
++#define PyDTrace_INSTANCE_DELETE_DONE(arg0)   do ; while (0)
++
++#define PyDTrace_LINE_ENABLED()                  (0)
++#define PyDTrace_FUNCTION_ENTRY_ENABLED()        (0)
++#define PyDTrace_FUNCTION_RETURN_ENABLED()       (0)
++#define PyDTrace_GC_START_ENABLED()              (0)
++#define PyDTrace_GC_DONE_ENABLED()               (0)
++#define PyDTrace_INSTANCE_NEW_START_ENABLED()    (0)
++#define PyDTrace_INSTANCE_NEW_DONE_ENABLED()     (0)
++#define PyDTrace_INSTANCE_DELETE_START_ENABLED() (0)
++#define PyDTrace_INSTANCE_DELETE_DONE_ENABLED()  (0)
++
++#endif /* !WITH_DTRACE */
++
++#endif /* !Py_DTRACE_H */
+diff -r 731b9653ef6b -r 90a23c06d3bc Lib/test/dtracedata/assert_usable.d
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Lib/test/dtracedata/assert_usable.d	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,5 @@
++BEGIN
++{
++    printf("probe: success\n");
++    exit(0);
++}
+diff -r 731b9653ef6b -r 90a23c06d3bc Lib/test/dtracedata/assert_usable.stp
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Lib/test/dtracedata/assert_usable.stp	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,5 @@
++probe begin
++{
++  println("probe: success")
++  exit ()
++}
+diff -r 731b9653ef6b -r 90a23c06d3bc Lib/test/dtracedata/call_stack.d
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Lib/test/dtracedata/call_stack.d	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,19 @@
++python$target:::function-entry
++/copyinstr(arg1) == "start"/
++{
++    self->trace = 1;
++}
++
++python$target:::function-entry,
++python$target:::function-return
++/self->trace/
++{
++    printf("%d\t%s:%s:%s:%d\n", timestamp, probename, basename(copyinstr(arg0)),
++           copyinstr(arg1), arg2);
++}
++
++python$target:::function-return
++/copyinstr(arg1) == "start"/
++{
++    self->trace = 0;
++}
+diff -r 731b9653ef6b -r 90a23c06d3bc Lib/test/dtracedata/call_stack.d.expected
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Lib/test/dtracedata/call_stack.d.expected	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,14 @@
++function-entry:call_stack.py:start:23
++function-entry:call_stack.py:function_1:1
++function-return:call_stack.py:function_1:2
++function-entry:call_stack.py:function_2:5
++function-entry:call_stack.py:function_1:1
++function-return:call_stack.py:function_1:2
++function-return:call_stack.py:function_2:6
++function-entry:call_stack.py:function_3:9
++function-return:call_stack.py:function_3:10
++function-entry:call_stack.py:function_4:13
++function-return:call_stack.py:function_4:14
++function-entry:call_stack.py:function_5:18
++function-return:call_stack.py:function_5:21
++function-return:call_stack.py:start:28
+diff -r 731b9653ef6b -r 90a23c06d3bc Lib/test/dtracedata/call_stack.py
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Lib/test/dtracedata/call_stack.py	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,30 @@
++def function_1():
++    pass
++
++# Check stacktrace
++def function_2():
++    function_1()
++
++# CALL_FUNCTION_VAR
++def function_3(dummy, dummy2):
++    pass
++
++# CALL_FUNCTION_KW
++def function_4(**dummy):
++    return 1
++    return 2
++
++# CALL_FUNCTION_VAR_KW
++def function_5(dummy, dummy2, **dummy3):
++    if False:
++        return 7
++    return 8
++
++def start():
++    function_1()
++    function_2()
++    function_3(*(1,2))
++    function_4(**{"test":42})
++    function_5(*(1,2), **{"test":42})
++
++start()
+diff -r 731b9653ef6b -r 90a23c06d3bc Lib/test/dtracedata/call_stack.stp
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Lib/test/dtracedata/call_stack.stp	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,41 @@
++global tracing
++
++function basename:string(path:string)
++{
++    last_token = token = tokenize(path, "/");
++    while (token != "") {
++        last_token = token;
++        token = tokenize("", "/");
++    }
++    return last_token;
++}
++
++probe process.mark("function__entry")
++{
++    funcname = user_string($arg2);
++
++    if (funcname == "start") {
++        tracing = 1;
++    }
++}
++
++probe process.mark("function__entry"), process.mark("function__return")
++{
++    filename = user_string($arg1);
++    funcname = user_string($arg2);
++    lineno = $arg3;
++
++    if (tracing) {
++        printf("%d\t%s:%s:%s:%d\n", gettimeofday_us(), $$name,
++               basename(filename), funcname, lineno);
++    }
++}
++
++probe process.mark("function__return")
++{
++    funcname = user_string($arg2);
++
++    if (funcname == "start") {
++        tracing = 0;
++    }
++}
+diff -r 731b9653ef6b -r 90a23c06d3bc Lib/test/dtracedata/call_stack.stp.expected
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Lib/test/dtracedata/call_stack.stp.expected	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,14 @@
++function__entry:call_stack.py:start:23
++function__entry:call_stack.py:function_1:1
++function__return:call_stack.py:function_1:2
++function__entry:call_stack.py:function_2:5
++function__entry:call_stack.py:function_1:1
++function__return:call_stack.py:function_1:2
++function__return:call_stack.py:function_2:6
++function__entry:call_stack.py:function_3:9
++function__return:call_stack.py:function_3:10
++function__entry:call_stack.py:function_4:13
++function__return:call_stack.py:function_4:14
++function__entry:call_stack.py:function_5:18
++function__return:call_stack.py:function_5:21
++function__return:call_stack.py:start:28
+diff -r 731b9653ef6b -r 90a23c06d3bc Lib/test/dtracedata/gc.d
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Lib/test/dtracedata/gc.d	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,18 @@
++python$target:::function-entry
++/copyinstr(arg1) == "start"/
++{
++    self->trace = 1;
++}
++
++python$target:::gc-start,
++python$target:::gc-done
++/self->trace/
++{
++    printf("%d\t%s:%ld\n", timestamp, probename, arg0);
++}
++
++python$target:::function-return
++/copyinstr(arg1) == "start"/
++{
++    self->trace = 0;
++}
+diff -r 731b9653ef6b -r 90a23c06d3bc Lib/test/dtracedata/gc.d.expected
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Lib/test/dtracedata/gc.d.expected	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,8 @@
++gc-start:0
++gc-done:0
++gc-start:1
++gc-done:0
++gc-start:2
++gc-done:0
++gc-start:2
++gc-done:1
+diff -r 731b9653ef6b -r 90a23c06d3bc Lib/test/dtracedata/gc.py
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Lib/test/dtracedata/gc.py	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,13 @@
++import gc
++
++def start():
++    gc.collect(0)
++    gc.collect(1)
++    gc.collect(2)
++    l = []
++    l.append(l)
++    del l
++    gc.collect(2)
++
++gc.collect()
++start()
+diff -r 731b9653ef6b -r 90a23c06d3bc Lib/test/dtracedata/gc.stp
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Lib/test/dtracedata/gc.stp	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,26 @@
++global tracing
++
++probe process.mark("function__entry")
++{
++    funcname = user_string($arg2);
++
++    if (funcname == "start") {
++        tracing = 1;
++    }
++}
++
++probe process.mark("gc__start"), process.mark("gc__done")
++{
++    if (tracing) {
++        printf("%d\t%s:%ld\n", gettimeofday_us(), $$name, $arg1);
++    }
++}
++
++probe process.mark("function__return")
++{
++    funcname = user_string($arg2);
++
++    if (funcname == "start") {
++        tracing = 0;
++    }
++}
+diff -r 731b9653ef6b -r 90a23c06d3bc Lib/test/dtracedata/gc.stp.expected
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Lib/test/dtracedata/gc.stp.expected	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,8 @@
++gc__start:0
++gc__done:0
++gc__start:1
++gc__done:0
++gc__start:2
++gc__done:0
++gc__start:2
++gc__done:1
+diff -r 731b9653ef6b -r 90a23c06d3bc Lib/test/dtracedata/instance.py
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Lib/test/dtracedata/instance.py	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,24 @@
++import gc
++
++class old_style_class():
++    pass
++class new_style_class(object):
++    pass
++
++a = old_style_class()
++del a
++gc.collect()
++b = new_style_class()
++del b
++gc.collect()
++
++a = old_style_class()
++del old_style_class
++gc.collect()
++b = new_style_class()
++del new_style_class
++gc.collect()
++del a
++gc.collect()
++del b
++gc.collect()
+diff -r 731b9653ef6b -r 90a23c06d3bc Lib/test/dtracedata/line.py
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Lib/test/dtracedata/line.py	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,7 @@
++a = 1  # Preamble
++for i in range(2):
++    a = i
++    b = i+2
++    c = i+3
++    d = a + b +c
++a = 1  # Epilogue
+diff -r 731b9653ef6b -r 90a23c06d3bc Lib/test/test_dtrace.py
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Lib/test/test_dtrace.py	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,171 @@
++import contextlib
++import dis
++import os.path
++import inspect
++import re
++import subprocess
++import sys
++import textwrap
++import types
++import unittest
++
++from test.support import findfile, run_unittest
++
++def abspath(filename):
++    return os.path.abspath(findfile(filename, subdir="dtracedata"))
++
++
++def normalize_trace_output(output):
++    """Normalize DTrace output for comparison.
++
++    DTrace keeps a per-CPU buffer, and when showing the fired probes, buffers
++    are concatenated. So if the operating system moves our thread around, the
++    straight result can be "non-causal". So we add timestamps to the probe
++    firing, sort by that field, then strip it from the output"""
++
++    # When compiling with '--with-pydebug', strip '[# refs]' debug output.
++    output = re.sub(r"\[[0-9]+ refs\]", "", output)
++    try:
++        result = [row.split("\t") for row in output.splitlines() if row]
++        result.sort(key=lambda row: int(row[0]))
++        result = [row[1] for row in result]
++        return "\n".join(result)
++    except (IndexError, ValueError):
++        raise AssertionError("tracer produced unparseable output")
++
++
++class TraceBackend:
++    EXTENSION = None
++    COMMAND = None
++    COMMAND_ARGS = []
++
++    def run_case(self, name, optimize_python=None):
++        actual_output = normalize_trace_output(self.trace_python(
++            script_file=abspath(name + self.EXTENSION),
++            python_file=abspath(name + ".py"),
++            optimize_python=optimize_python))
++
++        with open(abspath(name + self.EXTENSION + ".expected")) as f:
++            expected_output = f.read().strip()
++
++        return (expected_output, actual_output)
++
++    def generate_trace_command(self, script_file, subcommand=None):
++        command = self.COMMAND + [script_file]
++        if subcommand:
++            command += ["-c", subcommand]
++        return command
++
++    def trace(self, script_file, subcommand=None):
++        command = self.generate_trace_command(script_file, subcommand)
++        stdout, _ = subprocess.Popen(command,
++                                     stdout=subprocess.PIPE,
++                                     stderr=subprocess.STDOUT,
++                                     universal_newlines=True).communicate()
++        return stdout
++
++    def trace_python(self, script_file, python_file, optimize_python=None):
++        python_flags = []
++        if optimize_python:
++            python_flags.extend(["-O"] * optimize_python)
++        subcommand = " ".join([sys.executable] + python_flags + [python_file])
++        return self.trace(script_file, subcommand)
++
++    def assert_usable(self):
++        output = self.trace(script_file=abspath("trivial" + self.EXTENSION))
++        if output.strip() != "probe: success":
++            raise unittest.SkipTest("{}(1) failed: {}".format(
++                self.COMMAND[0], output))
++
++
++class DTraceBackend(TraceBackend):
++    EXTENSION = ".d"
++    COMMAND = ["dtrace", "-q", "-s"]
++
++
++class SystemTapBackend(TraceBackend):
++    EXTENSION = ".stp"
++    COMMAND = ["stap", "-g"]
++
++
++class TraceTests(unittest.TestCase):
++    # unittest.TestCase options
++    maxDiff = None
++
++    # TraceTests options
++    backend = None
++    optimize_python = 0
++
++    @classmethod
++    def setUpClass(self):
++        self.backend.assert_usable()
++
++    def run_case(self, name):
++        actual_output, expected_output = self.backend.run_case(
++            name, optimize_python=self.optimize_python)
++        self.assertEqual(actual_output, expected_output)
++
++    def test_function_entry_return(self):
++        self.run_case("call_stack")
++
++    def test_verify_call_opcodes(self):
++        """Ensure our call stack test hits all function call opcodes"""
++
++        opcodes = set(["CALL_FUNCTION", "CALL_FUNCTION_VAR",
++                       "CALL_FUNCTION_KW", "CALL_FUNCTION_VAR_KW"])
++
++        with open(abspath("call_stack.py")) as f:
++            code_string = f.read()
++
++        def get_function_instructions(funcname):
++            # Recompile with appropriate optimization setting
++            code = compile(source=code_string,
++                           filename="<string>",
++                           mode="exec",
++                           optimize=self.optimize_python)
++
++            for c in code.co_consts:
++                if isinstance(c, types.CodeType) and c.co_name == funcname:
++                    return dis.get_instructions(c)
++            return []
++
++        for instruction in get_function_instructions('start'):
++            opcodes.discard(instruction.opname)
++
++        self.assertEqual(set(), opcodes)
++
++    def test_gc(self):
++        self.run_case("gc")
++
++
++class DTraceNormalTests(TraceTests):
++    backend = DTraceBackend()
++    optimize_python = 0
++
++
++class DTraceOptimizedTests(TraceTests):
++    backend = DTraceBackend()
++    optimize_python = 2
++
++
++class SystemTapNormalTests(TraceTests):
++    backend = SystemTapBackend()
++    optimize_python = 0
++
++
++class SystemTapOptimizedTests(TraceTests):
++    backend = SystemTapBackend()
++    optimize_python = 2
++
++
++def test_main():
++    if not sys.dtrace_info.static_probes:
++        raise unittest.SkipTest("DTrace static probes not compiled into " +
++                                "interpreter.")
++
++    run_unittest(DTraceNormalTests, DTraceOptimizedTests, SystemTapNormalTests,
++                 SystemTapOptimizedTests)
++
++
++if __name__ == '__main__':
++    test_main()
+diff -r 731b9653ef6b -r 90a23c06d3bc Lib/test/test_sys.py
+--- a/Lib/test/test_sys.py	Mon Dec 22 22:10:10 2014 +0100
++++ b/Lib/test/test_sys.py	Sun Dec 28 04:28:49 2014 -0500
+@@ -443,6 +443,12 @@
+         self.assertGreaterEqual(sys.hash_info.cutoff, 0)
+         self.assertLess(sys.hash_info.cutoff, 8)
+ 
++        self.assertEqual(len(sys.dtrace_info), 2)
++        self.assertIsInstance(sys.dtrace_info.static_probes, bool)
++        self.assertIsInstance(sys.dtrace_info.ustack, bool)
++        self.assertEqual(sys.dtrace_info.static_probes,
++            bool(sysconfig.get_config_var("WITH_DTRACE")))
++
+         self.assertIsInstance(sys.maxsize, int)
+         self.assertIsInstance(sys.maxunicode, int)
+         self.assertEqual(sys.maxunicode, 0x10FFFF)
+diff -r 731b9653ef6b -r 90a23c06d3bc Makefile.pre.in
+--- a/Makefile.pre.in	Mon Dec 22 22:10:10 2014 +0100
++++ b/Makefile.pre.in	Sun Dec 28 04:28:49 2014 -0500
+@@ -44,6 +44,11 @@
+ HGTAG=		@HGTAG@
+ HGBRANCH=	@HGBRANCH@
+ 
++DTRACE=         @DTRACE@
++DFLAGS=         @DFLAGS@
++DTRACE_HEADERS= @DTRACE_HEADERS@
++DTRACE_OBJS=    @DTRACE_OBJS@
++
+ GNULD=		@GNULD@
+ 
+ # Shell used by make (some versions default to the login shell, which is bad)
+@@ -335,6 +340,14 @@
+ OPCODE_H_GEN=	@OPCODEHGEN@  $(OPCODE_H_SCRIPT) $(srcdir)/Lib/opcode.py $(OPCODE_H)
+ #
+ ##########################################################################
++# DTrace
++
++# On some systems, object files that reference DTrace probes need to be modified
++# in-place by dtrace(1).
++DTRACE_DEPS = \
++	Python/ceval.o
++
++##########################################################################
+ # AST
+ AST_H_DIR=	Include
+ AST_H=		$(AST_H_DIR)/Python-ast.h
+@@ -406,6 +419,7 @@
+ 		Python/formatter_unicode.o \
+ 		Python/fileutils.o \
+ 		Python/$(DYNLOADFILE) \
++		$(DTRACE_OBJS) \
+ 		$(LIBOBJS) \
+ 		$(MACHDEP_OBJS) \
+ 		$(THREADOBJ)
+@@ -786,6 +800,18 @@
+ $(OPCODE_H): $(srcdir)/Lib/opcode.py $(OPCODE_H_SCRIPT)
+ 	$(OPCODE_H_GEN)
+ 
++# Generate DTrace probe macros, then rename them (PYTHON_ -> PyDTrace_) to
++# follow our naming conventions. dtrace(1) uses the output filename to generate
++# an include guard, so we can't use a pipeline to transform its output.
++Include/pydtrace_probes.h: $(srcdir)/Python/pydtrace.d
++	$(DTRACE) $(DFLAGS) -o $@ -h -s $<
++	: sed in-place edit with POSIX-only tools
++	sed 's/PYTHON_/PyDTrace_/' $@ > $@.tmp
++	mv $@.tmp $@
++
++Python/pydtrace.o: $(srcdir)/Python/pydtrace.d $(DTRACE_DEPS)
++	$(DTRACE) $(DFLAGS) -o $@ -G -s $< $(DTRACE_DEPS)
++
+ Python/compile.o Python/symtable.o Python/ast.o: $(GRAMMAR_H) $(AST_H)
+ 
+ Python/getplatform.o: $(srcdir)/Python/getplatform.c
+@@ -907,6 +933,7 @@
+ 		$(srcdir)/Include/pycapsule.h \
+ 		$(srcdir)/Include/pyctype.h \
+ 		$(srcdir)/Include/pydebug.h \
++		$(srcdir)/Include/pydtrace.h \
+ 		$(srcdir)/Include/pyerrors.h \
+ 		$(srcdir)/Include/pyfpe.h \
+ 		$(srcdir)/Include/pyhash.h \
+@@ -936,6 +963,7 @@
+ 		$(srcdir)/Include/warnings.h \
+ 		$(srcdir)/Include/weakrefobject.h \
+ 		pyconfig.h \
++		$(DTRACE_HEADERS) \
+ 		$(PARSER_HEADERS) \
+ 		$(AST_H)
+ 
+@@ -1143,6 +1171,7 @@
+ 		test/audiodata \
+ 		test/capath test/data \
+ 		test/cjkencodings test/decimaltestdata test/xmltestdata \
++		test/dtracedata \
+ 		test/imghdrdata \
+ 		test/subprocessdata test/sndhdrdata test/support \
+ 		test/tracedmodules test/encoded_modules \
+@@ -1551,6 +1580,7 @@
+ 	-rm -f pybuilddir.txt
+ 	-rm -f Lib/lib2to3/*Grammar*.pickle
+ 	-rm -f Programs/_testembed Programs/_freeze_importlib
++	-rm -f Include/pydtrace_probes.h*
+ 
+ profile-removal:
+ 	find . -name '*.gc??' -exec rm -f {} ';'
+diff -r 731b9653ef6b -r 90a23c06d3bc Misc/python.stp
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Misc/python.stp	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,20 @@
++/*
++   Python SystemTap tapset.
++
++   Provide a higher-level wrapping around the function__entry and
++   function__return markers:
++ */
++
++probe python.function.entry = process("python").mark("function__entry")
++{
++    filename = user_string($arg1);
++    funcname = user_string($arg2);
++    lineno = $arg3;
++}
++
++probe python.function.return = process("python").mark("function__return")
++{
++    filename = user_string($arg1);
++    funcname = user_string($arg2);
++    lineno = $arg3;
++}
+diff -r 731b9653ef6b -r 90a23c06d3bc Modules/gcmodule.c
+--- a/Modules/gcmodule.c	Mon Dec 22 22:10:10 2014 +0100
++++ b/Modules/gcmodule.c	Sun Dec 28 04:28:49 2014 -0500
+@@ -25,6 +25,7 @@
+ 
+ #include "Python.h"
+ #include "frameobject.h"        /* for PyFrame_ClearFreeList */
++#include "pydtrace.h"
+ #include "pytime.h"             /* for _PyTime_monotonic, _PyTime_INTERVAL */
+ 
+ /* Get an object's GC head */
+@@ -924,6 +925,10 @@
+         PySys_WriteStderr("\n");
+     }
+ 
++    if (PyDTrace_GC_START_ENABLED()) {
++        PyDTrace_GC_START(generation);
++    }
++
+     /* update collection and allocation counters */
+     if (generation+1 < NUM_GENERATIONS)
+         generations[generation+1].count += 1;
+@@ -1068,6 +1073,11 @@
+     stats->collections++;
+     stats->collected += m;
+     stats->uncollectable += n;
++
++    if (PyDTrace_GC_DONE_ENABLED()) {
++        PyDTrace_GC_DONE(n+m);
++    }
++
+     return n+m;
+ }
+ 
+diff -r 731b9653ef6b -r 90a23c06d3bc Python/ceval.c
+--- a/Python/ceval.c	Mon Dec 22 22:10:10 2014 +0100
++++ b/Python/ceval.c	Sun Dec 28 04:28:49 2014 -0500
+@@ -14,10 +14,13 @@
+ #include "code.h"
+ #include "frameobject.h"
+ #include "opcode.h"
++#include "pydtrace.h"
+ #include "structmember.h"
+ 
+ #include <ctype.h>
+ 
++#include "ceval_dtrace.h"
++
+ #ifndef WITH_TSC
+ 
+ #define READ_TIMESTAMP(var)
+@@ -1158,6 +1161,9 @@
+         }
+     }
+ 
++    if (PyDTrace_FUNCTION_ENTRY_ENABLED())
++        dtrace_function_entry(f);
++
+     co = f->f_code;
+     names = co->co_names;
+     consts = co->co_consts;
+@@ -3249,6 +3255,9 @@
+ 
+     /* pop frame */
+ exit_eval_frame:
++    if (PyDTrace_FUNCTION_RETURN_ENABLED()) {
++        dtrace_function_return(f);
++    }
+     Py_LeaveRecursiveCall();
+     f->f_executing = 0;
+     tstate->frame = f->f_back;
+diff -r 731b9653ef6b -r 90a23c06d3bc Python/ceval_dtrace.h
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Python/ceval_dtrace.h	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,29 @@
++#include "pydtrace.h"
++
++static void
++dtrace_function_entry(PyFrameObject *f)
++{
++    char* filename;
++    char* funcname;
++    int lineno;
++
++    filename = PyUnicode_AsUTF8(f->f_code->co_filename);
++    funcname = PyUnicode_AsUTF8(f->f_code->co_name);
++    lineno = PyCode_Addr2Line(f->f_code, f->f_lasti);
++
++    PyDTrace_FUNCTION_ENTRY(filename, funcname, lineno);
++}
++
++static void
++dtrace_function_return(PyFrameObject *f)
++{
++    char* filename;
++    char* funcname;
++    int lineno;
++
++    filename = PyUnicode_AsUTF8(f->f_code->co_filename);
++    funcname = PyUnicode_AsUTF8(f->f_code->co_name);
++    lineno = PyCode_Addr2Line(f->f_code, f->f_lasti);
++
++    PyDTrace_FUNCTION_RETURN(filename, funcname, lineno);
++}
+diff -r 731b9653ef6b -r 90a23c06d3bc Python/pydtrace.d
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Python/pydtrace.d	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,20 @@
++/* Python DTrace provider */
++
++provider python {
++    probe line(const char *, const char *, int);
++    probe function__entry(const char *, const char *, int);
++    probe function__return(const char *, const char *, int);
++    probe instance__new__start(const char *, const char *);
++    probe instance__new__done(const char *, const char *);
++    probe instance__delete__start(const char *, const char *);
++    probe instance__delete__done(const char *, const char *);
++    probe gc__start(int);
++    probe gc__done(long);
++};
++
++#pragma D attributes Evolving/Evolving/ISA provider python provider
++#pragma D attributes Private/Private/Unknown provider python module
++#pragma D attributes Private/Private/Unknown provider python function
++#pragma D attributes Evolving/Evolving/ISA provider python name
++#pragma D attributes Evolving/Evolving/ISA provider python args
++
+diff -r 731b9653ef6b -r 90a23c06d3bc Python/python.d
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Python/python.d	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,1 @@
++/* Python DTrace library */
+diff -r 731b9653ef6b -r 90a23c06d3bc Python/python.stp
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Python/python.stp	Sun Dec 28 04:28:49 2014 -0500
+@@ -0,0 +1,1 @@
++/* Python SystemTap library */
+diff -r 731b9653ef6b -r 90a23c06d3bc Python/sysmodule.c
+--- a/Python/sysmodule.c	Mon Dec 22 22:10:10 2014 +0100
++++ b/Python/sysmodule.c	Sun Dec 28 04:28:49 2014 -0500
+@@ -710,6 +710,52 @@
+     return hash_info;
+ }
+ 
++static PyTypeObject Dtrace_InfoType;
++
++PyDoc_STRVAR(dtrace_info_doc,
++"dtrace_info\n\
++\n\
++A struct sequence with information about the DTrace support compiled in to \n\
++this interpreter. The attributes are read only.");
++
++static PyStructSequence_Field dtrace_info_fields[] = {
++    {"static_probes", "whether statically defined probes are available"},
++    {"version", "the DTrace API reported at compile-time"},
++    {NULL, NULL}
++};
++
++static PyStructSequence_Desc dtrace_info_desc = {
++    "sys.dtrace_info",
++    dtrace_info_doc,
++    dtrace_info_fields,
++    2,
++};
++
++static PyObject *
++get_dtrace_info(void)
++{
++    PyObject *dtrace_info;
++    int field = 0;
++    dtrace_info = PyStructSequence_New(&Dtrace_InfoType);
++    if (dtrace_info == NULL)
++        return NULL;
++
++#ifdef WITH_DTRACE
++    PyStructSequence_SET_ITEM(dtrace_info, field++,
++        PyBool_FromLong(1));
++#else
++    PyStructSequence_SET_ITEM(dtrace_info, field++,
++        PyBool_FromLong(0));
++#endif
++
++    PyStructSequence_SET_ITEM(dtrace_info, field++,
++        PyUnicode_FromString("yet unknown"));
++    if (PyErr_Occurred()) {
++        Py_CLEAR(dtrace_info);
++        return NULL;
++    }
++    return dtrace_info;
++}
+ 
+ PyDoc_STRVAR(setrecursionlimit_doc,
+ "setrecursionlimit(n)\n\
+@@ -1370,6 +1416,7 @@
+ \n\
+ builtin_module_names -- tuple of module names built into this interpreter\n\
+ copyright -- copyright notice pertaining to this interpreter\n\
++dtrace_info -- a struct sequence with information about DTrace support.\n\
+ exec_prefix -- prefix used to find the machine-specific Python library\n\
+ executable -- absolute path of the executable binary of the Python interpreter\n\
+ float_info -- a struct sequence with information about the float implementation.\n\
+@@ -1737,6 +1784,13 @@
+     }
+     SET_SYS_FROM_STRING("hash_info",
+                         get_hash_info());
++    /* initialize dtrace_info */
++    if (Dtrace_InfoType.tp_name == NULL) {
++        if (PyStructSequence_InitType2(&Dtrace_InfoType, &dtrace_info_desc) < 0)
++            return NULL;
++    }
++    SET_SYS_FROM_STRING("dtrace_info",
++                        get_dtrace_info());
+     SET_SYS_FROM_STRING("maxunicode",
+                         PyLong_FromLong(0x10FFFF));
+     SET_SYS_FROM_STRING("builtin_module_names",
+diff -r 731b9653ef6b -r 90a23c06d3bc configure.ac
+--- a/configure.ac	Mon Dec 22 22:10:10 2014 +0100
++++ b/configure.ac	Sun Dec 28 04:28:49 2014 -0500
+@@ -1059,6 +1059,7 @@
+ esac
+ AC_PROG_INSTALL
+ AC_PROG_MKDIR_P
++AC_PROG_SED
+ 
+ # Not every filesystem supports hard links
+ AC_SUBST(LN)
+@@ -2943,6 +2944,47 @@
+     OPT="-DDYNAMIC_ANNOTATIONS_ENABLED=1 $OPT"
+ fi
+ 
++# Check for dtrace support
++AC_MSG_CHECKING(for --with-dtrace)
++AC_ARG_WITH(dtrace,
++  AC_HELP_STRING(--with(out)-dtrace, [disable/enable DTrace support]),,
++  with_dtrace=no)
++AC_MSG_RESULT($with_dtrace)
++
++AC_SUBST(DTRACE)
++AC_SUBST(DFLAGS)
++AC_SUBST(DTRACE_HEADERS)
++AC_SUBST(DTRACE_OBJS)
++DTRACE=
++DFLAGS=
++DTRACE_HEADERS=
++DTRACE_OBJS=
++
++if test "$with_dtrace" = "yes"
++then
++    AC_PATH_PROG(DTRACE, [dtrace], [not found])
++    if test "$DTRACE" = "not found"; then
++        AC_MSG_ERROR([dtrace command not found on \$PATH])
++    fi
++    AC_DEFINE(WITH_DTRACE, 1, [Define if you want to compile in DTrace support])
++    DTRACE_HEADERS="Include/pydtrace_probes.h"
++
++    # On OS X, DTrace providers do not need to be explicitly compiled and
++    # linked into the binary. Correspondingly, dtrace(1) is missing the ELF
++    # generation flag '-G'. We check for presence of this flag, rather than
++    # hardcoding support by OS, in the interest of robustness.
++    AC_CACHE_CHECK([whether DTrace probes require linking],
++        [ac_cv_dtrace_link], [dnl
++            ac_cv_dtrace_link=no
++            echo 'BEGIN' > conftest.d
++            "$DTRACE" -G -s conftest.d -o conftest.o > /dev/null 2>&1 && \
++                ac_cv_dtrace_link=yes
++      ])
++    if test "$ac_cv_dtrace_link" = "yes"; then
++        DTRACE_OBJS="Python/pydtrace.o"
++    fi
++fi
++
+ # -I${DLINCLDIR} is added to the compile rule for importdl.o
+ AC_SUBST(DLINCLDIR)
+ DLINCLDIR=.
+diff -r 731b9653ef6b -r 90a23c06d3bc pyconfig.h.in
+--- a/pyconfig.h.in	Mon Dec 22 22:10:10 2014 +0100
++++ b/pyconfig.h.in	Sun Dec 28 04:28:49 2014 -0500
+@@ -1340,6 +1340,9 @@
+ /* Define if you want documentation strings in extension modules */
+ #undef WITH_DOC_STRINGS
+ 
++/* Define if you want to compile in DTrace support */
++#undef WITH_DTRACE
++
+ /* Define if you want to use the new-style (Openstep, Rhapsody, MacOS) dynamic
+    linker (dyld) instead of the old-style (NextStep) dynamic linker (rld).
+    Dyld is necessary to support frameworks. */
